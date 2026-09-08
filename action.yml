@@ -1,0 +1,93 @@
+name: coverfire
+description: Coverage that blocks the merge — PR comments, check runs, line annotations. No GitHub App.
+author: coverfire
+branding:
+  icon: check-circle
+  color: green
+inputs:
+  file:
+    description: Coverage file (lcov, istanbul JSON, clover, or cobertura). Auto-detected if empty.
+    required: false
+    default: ""
+  min:
+    description: Fail if project coverage is below this percent. 0 disables.
+    required: false
+    default: ""
+  patch-min:
+    description: Fail if patch coverage is below this percent. 0 disables.
+    required: false
+    default: ""
+  max-decrease:
+    description: Fail if project coverage drops more than this many points vs --base-file.
+    required: false
+    default: ""
+  base:
+    description: Git base ref or sha for patch coverage.
+    required: false
+    default: ""
+  base-file:
+    description: Coverage file from the base branch, used for project delta.
+    required: false
+    default: ""
+  ignore:
+    description: Comma-separated globs to ignore.
+    required: false
+    default: ""
+  component:
+    description: Label for monorepos (appears on comments and checks).
+    required: false
+    default: ""
+  comment:
+    description: Upsert a PR comment.
+    required: false
+    default: "true"
+  checks:
+    description: Publish coverage/project, coverage/patch, and coverage/change checks.
+    required: false
+    default: "true"
+  annotate:
+    description: Add notice-level line annotations for uncovered patch lines.
+    required: false
+    default: "true"
+  token:
+    description: GitHub token. Defaults to the workflow token.
+    required: false
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - name: Run coverfire
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        INPUT_FILE: ${{ inputs.file }}
+        INPUT_MIN: ${{ inputs.min }}
+        INPUT_PATCH_MIN: ${{ inputs.patch-min }}
+        INPUT_MAX_DECREASE: ${{ inputs.max-decrease }}
+        INPUT_BASE: ${{ inputs.base }}
+        INPUT_BASE_FILE: ${{ inputs.base-file }}
+        INPUT_IGNORE: ${{ inputs.ignore }}
+        INPUT_COMPONENT: ${{ inputs.component }}
+        INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_CHECKS: ${{ inputs.checks }}
+        INPUT_ANNOTATE: ${{ inputs.annotate }}
+      run: |
+        set -euo pipefail
+        args=()
+        if [[ -n "$INPUT_FILE" ]]; then args+=(--file "$INPUT_FILE"); fi
+        if [[ -n "$INPUT_MIN" ]]; then args+=(--min "$INPUT_MIN"); fi
+        if [[ -n "$INPUT_PATCH_MIN" ]]; then args+=(--patch-min "$INPUT_PATCH_MIN"); fi
+        if [[ -n "$INPUT_MAX_DECREASE" ]]; then args+=(--max-decrease "$INPUT_MAX_DECREASE"); fi
+        if [[ -n "$INPUT_BASE" ]]; then args+=(--base "$INPUT_BASE"); fi
+        if [[ -n "$INPUT_BASE_FILE" ]]; then args+=(--base-file "$INPUT_BASE_FILE"); fi
+        if [[ -n "$INPUT_COMPONENT" ]]; then args+=(--component "$INPUT_COMPONENT"); fi
+        if [[ -n "$INPUT_IGNORE" ]]; then
+          IFS=',' read -ra globs <<< "$INPUT_IGNORE"
+          for g in "${globs[@]}"; do
+            args+=(--ignore "$g")
+          done
+        fi
+        if [[ "$INPUT_COMMENT" == "true" ]]; then args+=(--comment); else args+=(--no-comment); fi
+        if [[ "$INPUT_CHECKS" == "true" ]]; then args+=(--checks); else args+=(--no-checks); fi
+        if [[ "$INPUT_ANNOTATE" != "true" ]]; then args+=(--no-annotate); fi
+        node "$GITHUB_ACTION_PATH/bin/coverfire.js" "${args[@]}"

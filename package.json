@@ -1,0 +1,40 @@
+{
+  "name": "coverfire",
+  "version": "0.1.0",
+  "description": "Coverage that blocks the merge. Local/CI patch + project coverage, GitHub PR comments, status checks, line annotations. No GitHub App.",
+  "type": "module",
+  "bin": {
+    "coverfire": "./bin/coverfire.js"
+  },
+  "exports": {
+    ".": "./lib/coverfire.js"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "action.yml"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "coverage",
+    "lcov",
+    "github",
+    "pull-request",
+    "status-check",
+    "ci"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Charlisim/coverfire.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Charlisim/coverfire/issues"
+  },
+  "homepage": "https://github.com/Charlisim/coverfire#readme"
+}
