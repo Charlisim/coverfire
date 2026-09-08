@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>coverfire — coverage that blocks the merge</title>
+  <meta name="description" content="Local/CI coverage gate. Project and patch coverage, GitHub PR comments, status checks, and line annotations. No GitHub App.">
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <meta property="og:title" content="coverfire">
+  <meta property="og:description" content="Coverage that blocks the merge.">
+  <meta property="og:type" content="website">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #12100c;
+      --bg-2: #1b1812;
+      --paper: #efe6d2;
+      --paper-2: #e2d6bb;
+      --ink: #16130e;
+      --muted: #9c9486;
+      --tracer: #ff4b12;
+      --brass: #d4a017;
+      --ok: #8adf3e;
+      --fail: #ff4b12;
+      --line: rgba(239, 230, 210, 0.12);
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--paper);
+      font-family: "Spline Sans Mono", ui-monospace, monospace;
+      font-size: 15px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+      text-wrap: pretty;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 8;
+      opacity: 0.07;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.9'/%3E%3C/svg%3E");
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        repeating-linear-gradient(
+          -18deg,
+          transparent 0 22px,
+          rgba(255, 75, 18, 0.028) 22px 23px
+        );
+    }
+
+    a { color: var(--tracer); text-underline-offset: 3px; }
+    a:hover { color: var(--brass); }
+    code, kbd { font-family: inherit; }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 22px 0 8px;
+      animation: rise 0.7s cubic-bezier(0.2, 0, 0, 1) both;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--paper);
+      text-decoration: none;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-size: 12px;
+    }
+    .brand i {
+      width: 18px;
+      height: 10px;
+      background: var(--tracer);
+      clip-path: polygon(0 100%, 70% 0, 100% 0, 30% 100%);
+      display: block;
+    }
+
+    nav {
+      display: flex;
+      gap: 18px;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    nav a { color: var(--muted); text-decoration: none; }
+    nav a:hover { color: var(--paper); }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 36px;
+      align-items: end;
+      padding: 28px 0 56px;
+    }
+
+    .word {
+      font-family: "Big Shoulders Display", sans-serif;
+      font-weight: 900;
+      font-size: clamp(4.6rem, 16vw, 11.4rem);
+      line-height: 0.78;
+      letter-spacing: -0.055em;
+      text-transform: uppercase;
+      text-wrap: balance;
+      margin: 0 0 18px;
+      position: relative;
+      animation: rise 0.8s cubic-bezier(0.2, 0, 0, 1) 0.05s both;
+    }
+    .word span {
+      display: block;
+      background: linear-gradient(180deg, #fff6e4 0%, #efe6d2 42%, #c9b894 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .tracer {
+      position: absolute;
+      left: -8%;
+      right: -12%;
+      top: 54%;
+      height: 7px;
+      background: linear-gradient(90deg, transparent, var(--tracer) 18%, #ffd0bf 50%, var(--tracer) 78%, transparent);
+      transform: rotate(-7deg);
+      filter: drop-shadow(0 0 10px var(--tracer));
+      animation: streak 0.9s cubic-bezier(0.2, 0, 0, 1) 0.35s both;
+      pointer-events: none;
+    }
+
+    .lede {
+      max-width: 42ch;
+      color: var(--muted);
+      margin: 0;
+      animation: rise 0.8s cubic-bezier(0.2, 0, 0, 1) 0.15s both;
+    }
+    .lede strong { color: var(--paper); font-weight: 600; }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 22px 0 0;
+      animation: rise 0.8s cubic-bezier(0.2, 0, 0, 1) 0.22s both;
+    }
+    .chip {
+      border: 1px solid var(--line);
+      padding: 6px 10px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-radius: 999px;
+    }
+    .chip.hot {
+      border-color: color-mix(in srgb, var(--tracer) 50%, transparent);
+      color: var(--tracer);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 26px;
+      animation: rise 0.8s cubic-bezier(0.2, 0, 0, 1) 0.3s both;
+    }
+    .btn {
+      appearance: none;
+      border: 0;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      border-radius: 999px;
+      font: 600 13px/1 "Spline Sans Mono", ui-monospace, monospace;
+      letter-spacing: 0.02em;
+      transition-property: transform, background, color, border-color;
+      transition-duration: 140ms;
+      transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+    }
+    .btn:active { transform: scale(0.96); }
+    .btn.primary {
+      background: var(--tracer);
+      color: #1a0b06;
+    }
+    .btn.primary:hover { background: #ff6a38; color: #1a0b06; }
+    .btn.ghost {
+      background: transparent;
+      color: var(--paper);
+      border: 1px solid var(--line);
+    }
+    .btn.ghost:hover { border-color: var(--paper); }
+
+    .board {
+      background: var(--paper);
+      color: var(--ink);
+      border-radius: calc(var(--radius) + 6px);
+      padding: 8px;
+      box-shadow:
+        0 30px 70px rgba(0, 0, 0, 0.38),
+        0 0 0 1px rgba(255, 255, 255, 0.06);
+      animation: rise 0.85s cubic-bezier(0.2, 0, 0, 1) 0.18s both;
+      transform: rotate(1.2deg);
+    }
+    .board-inner {
+      background: #f7f1e2;
+      border-radius: var(--radius);
+      overflow: hidden;
+      outline: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    .board-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px dashed rgba(22, 19, 14, 0.18);
+      font-size: 12px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--tracer);
+      box-shadow: 0 0 0 4px rgba(255, 75, 18, 0.15);
+      flex: none;
+    }
+    .board-top b { font-weight: 600; }
+    .sub { color: #6d6658; }
+
+    .row {
+      display: grid;
+      grid-template-columns: 18px 1fr auto auto;
+      gap: 10px;
+      align-items: center;
+      padding: 11px 16px;
+      font-size: 12.5px;
+      border-bottom: 1px solid rgba(22, 19, 14, 0.08);
+      font-variant-numeric: tabular-nums;
+    }
+    .row:last-child { border-bottom: 0; }
+    .mark { width: 12px; height: 12px; }
+    .ok { color: #2d6b12; }
+    .bad { color: var(--tracer); font-weight: 600; }
+    .req {
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: 1px solid rgba(22, 19, 14, 0.2);
+      padding: 2px 6px;
+      border-radius: 999px;
+    }
+
+    .stamp-wrap {
+      position: relative;
+      padding: 16px;
+    }
+    .merge {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: #1a1610;
+      color: var(--paper);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .merge b { color: var(--tracer); }
+    .stamp {
+      position: absolute;
+      right: 18px;
+      top: -8px;
+      rotate: 12deg;
+      border: 3px solid var(--tracer);
+      color: var(--tracer);
+      font-family: "Big Shoulders Display", sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      padding: 4px 10px 2px;
+      text-transform: uppercase;
+      background: color-mix(in srgb, var(--paper) 82%, transparent);
+      animation: stamp 0.45s cubic-bezier(0.2, 0, 0, 1) 0.9s both;
+    }
+
+    .band {
+      border-top: 1px solid var(--line);
+      padding: 64px 0;
+    }
+    .kicker {
+      color: var(--tracer);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      font-size: 11px;
+      margin: 0 0 10px;
+    }
+    h2 {
+      font-family: "Big Shoulders Display", sans-serif;
+      font-size: clamp(2.4rem, 5vw, 4rem);
+      line-height: 0.9;
+      letter-spacing: -0.03em;
+      text-transform: uppercase;
+      text-wrap: balance;
+      margin: 0 0 18px;
+      font-weight: 800;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-top: 28px;
+    }
+    .card {
+      background: var(--bg-2);
+      border-radius: var(--radius);
+      padding: 22px 20px 20px;
+      outline: 1px solid var(--line);
+      min-height: 180px;
+    }
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .card p { margin: 0; color: var(--muted); font-size: 13.5px; }
+    .idx {
+      display: block;
+      color: var(--brass);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      margin-bottom: 18px;
+    }
+
+    .install {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 28px;
+      align-items: start;
+    }
+    .term {
+      background: #0b0a08;
+      border-radius: var(--radius);
+      outline: 1px solid var(--line);
+      overflow: hidden;
+    }
+    .term-bar {
+      display: flex;
+      gap: 6px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .term-bar span {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #3a342c;
+    }
+    pre {
+      margin: 0;
+      padding: 18px 16px 20px;
+      overflow: auto;
+      font: 500 13px/1.6 "Spline Sans Mono", ui-monospace, monospace;
+      color: var(--paper-2);
+    }
+    .prompt { color: var(--tracer); }
+    .copy {
+      margin: 10px 16px 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    th { color: var(--muted); font-weight: 500; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+    td:first-child { color: var(--brass); width: 34%; }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding: 28px 0 48px;
+      color: var(--muted);
+      font-size: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes streak {
+      from { opacity: 0; transform: rotate(-7deg) scaleX(0.2); transform-origin: left; }
+      to { opacity: 1; transform: rotate(-7deg) scaleX(1); transform-origin: left; }
+    }
+    @keyframes stamp {
+      from { opacity: 0; transform: scale(1.4) rotate(18deg); }
+      to { opacity: 1; transform: scale(1) rotate(12deg); }
+    }
+
+    @media (max-width: 860px) {
+      .hero, .install, .grid-3 { grid-template-columns: 1fr; }
+      .board { transform: none; }
+      nav { display: none; }
+      .stamp { right: 12px; top: 4px; font-size: 22px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="./"><i></i> coverfire</a>
+      <nav>
+        <a href="#do">What it posts</a>
+        <a href="#run">Run it</a>
+        <a href="https://github.com/Charlisim/coverfire">GitHub</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div>
+        <h1 class="word">
+          <span>Cover</span>
+          <span>fire</span>
+          <i class="tracer" aria-hidden="true"></i>
+        </h1>
+        <p class="lede">
+          <strong>Coverage that blocks the merge.</strong>
+          Local CLI and CI. Sticky PR comment, required checks, uncovered lines marked in the diff. No GitHub App. Source never leaves the machine.
+        </p>
+        <div class="meta">
+          <span class="chip hot">MIT</span>
+          <span class="chip">Node 18+</span>
+          <span class="chip">zero deps</span>
+          <span class="chip">lcov · istanbul · clover · cobertura</span>
+        </div>
+        <div class="actions">
+          <a class="btn primary" href="#run">Get covering fire</a>
+          <a class="btn ghost" href="https://github.com/Charlisim/coverfire">View source</a>
+        </div>
+      </div>
+
+      <aside class="board" aria-label="Pull request blocked by patch coverage">
+        <div class="board-inner">
+          <div class="board-top">
+            <span class="dot"></span>
+            <div>
+              <b>Some checks were not successful</b>
+              <div class="sub">1 failing · 3 successful</div>
+            </div>
+          </div>
+          <div class="row">
+            <svg class="mark ok" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5 5 9.5 10 3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+            <span>coverage/project</span>
+            <span>82.6% (+2.4%)</span>
+            <span class="req">Required</span>
+          </div>
+          <div class="row">
+            <svg class="mark bad" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3 9 9M9 3 3 9" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+            <span class="bad">coverage/patch</span>
+            <span class="bad">64% · min 80%</span>
+            <span class="req">Required</span>
+          </div>
+          <div class="row">
+            <svg class="mark ok" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6.5 5 9.5 10 3" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+            <span>tests</span>
+            <span>248 passed</span>
+            <span></span>
+          </div>
+          <div class="stamp-wrap">
+            <div class="merge">
+              <span>Merge blocked</span>
+              <span>Required check <b>coverage/patch</b> must pass.</span>
+            </div>
+            <div class="stamp">Hold fire</div>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="band" id="do">
+      <p class="kicker">After action</p>
+      <h2>Three shots.<br>One sticky comment.</h2>
+      <div class="grid-3">
+        <article class="card">
+          <span class="idx">01 / COMMENT</span>
+          <h3>Upsert, don’t spam</h3>
+          <p>One PR comment marked <code>&lt;!-- coverfire --&gt;</code>. New pushes rewrite it in place. Project, patch, delta, uncovered hunks.</p>
+        </article>
+        <article class="card">
+          <span class="idx">02 / CHECKS</span>
+          <h3>Make merge earn it</h3>
+          <p><code>coverage/project</code>, <code>coverage/patch</code>, <code>coverage/change</code>. Check runs first; commit statuses if the token can’t. Wire them into branch protection.</p>
+        </article>
+        <article class="card">
+          <span class="idx">03 / LINES</span>
+          <h3>Point at the miss</h3>
+          <p>Notice-level annotations on uncovered ranges in the diff. They don’t fail the job. The patch check does.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="band" id="run">
+      <div class="install">
+        <div>
+          <p class="kicker">Local and CI</p>
+          <h2>Run it where the tests already ran.</h2>
+          <p class="lede">Not a GitHub App. <code>GITHUB_TOKEN</code> is enough. GitLab, Circle, Jenkins: same binary, same exit code. Comment on a GitHub PR from anywhere with <code>--repo --pr --sha</code>.</p>
+        </div>
+        <div class="term">
+          <div class="term-bar"><span></span><span></span><span></span></div>
+          <pre><span class="prompt">$</span> npx jest --coverage --coverageReporters=lcov
+<span class="prompt">$</span> npx coverfire --min 80 --patch-min 80 --base origin/main</pre>
+          <div class="copy">
+            <button class="btn ghost" type="button" id="copy">Copy install</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:40px">
+        <table>
+          <thead>
+            <tr><th>Surface</th><th>What happens</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>GitHub Actions</td><td><code>uses: Charlisim/coverfire@v0.1.0</code> after tests. <code>fetch-depth: 0</code>. Permissions: <code>pull-requests: write</code>, <code>checks: write</code>, <code>statuses: write</code>.</td></tr>
+            <tr><td>Any other CI</td><td><code>npx coverfire --file coverage/lcov.info --min 80 --patch-min 80</code>. Exit 1 fails the job.</td></tr>
+            <tr><td>Config</td><td><code>coverfire.json</code> in the repo root. Flags win. <code>0</code> on a threshold means report only.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      <span>MIT · © 2026 Charlisim</span>
+      <span><a href="https://github.com/Charlisim/coverfire">github.com/Charlisim/coverfire</a></span>
+    </footer>
+  </div>
+  <script>
+    const cmd = "npm i -D coverfire";
+    const btn = document.getElementById("copy");
+    btn?.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(cmd);
+        btn.textContent = "Copied";
+        setTimeout(() => { btn.textContent = "Copy install"; }, 1400);
+      } catch {
+        btn.textContent = cmd;
+      }
+    });
+  </script>
+</body>
+</html>

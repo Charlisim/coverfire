@@ -2,6 +2,8 @@
 
 Coverage that blocks the merge.
 
+Site: [charlisim.github.io/coverfire](https://charlisim.github.io/coverfire/)
+
 Runs **locally** and in **CI**. Reads lcov/istanbul/clover/cobertura, computes **project** and **patch** coverage, fails the job, and on GitHub upserts a **PR comment**, publishes **status checks**, and marks uncovered lines.
 
 Not a GitHub App. Uses `GITHUB_TOKEN` (or any PAT) from the job. Source code never leaves the machine.
