@@ -112,7 +112,7 @@ jobs:
       - run: npx jest --coverage --coverageReporters=lcov --coverageReporters=text
 
       - name: Coverage gate
-        uses: Charlisim/coverfire@v0.1.0
+        uses: Charlisim/coverfire@v0.2.0
         with:
           file: coverage/lcov.info
           min: "80"

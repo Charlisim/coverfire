@@ -1,6 +1,6 @@
 {
   "name": "coverfire",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Coverage that blocks the merge. Local/CI patch + project coverage, GitHub PR comments, status checks, line annotations. No GitHub App.",
   "type": "module",
   "bin": {
