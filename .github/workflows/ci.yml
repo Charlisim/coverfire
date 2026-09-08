@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  node:
+    name: node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          check-latest: true
+      - run: node --version && npm --version
+      - run: npm test
+      - run: node bin/coverfire.js --help
+
+  pnpm:
+    name: pnpm 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          check-latest: true
+      - run: pnpm --version
+      - run: pnpm test
+      - run: pnpm pack
+      - name: Install packed tarball with pnpm
+        run: |
+          pkg=$(ls "$GITHUB_WORKSPACE"/coverfire-*.tgz)
+          mkdir -p /tmp/cf && cd /tmp/cf
+          printf '{"name":"cf-smoke"}\n' > package.json
+          pnpm add "$pkg"
+          pnpm exec coverfire --help
+
+  bun:
+    name: bun latest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun --version
+      - run: bun test
+      - run: bun bin/coverfire.js --help
+      - run: bun pm pack
+      - name: Install packed tarball with bun
+        run: |
+          pkg=$(ls "$GITHUB_WORKSPACE"/coverfire-*.tgz)
+          mkdir -p /tmp/cf && cd /tmp/cf
+          printf '{"name":"cf-smoke"}\n' > package.json
+          bun add "$pkg"
+          bunx coverfire --help

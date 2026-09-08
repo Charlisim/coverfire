@@ -4,27 +4,51 @@ Coverage that blocks the merge.
 
 Site: [charlisim.github.io/coverfire](https://charlisim.github.io/coverfire/)
 
+[![ci](https://github.com/Charlisim/coverfire/actions/workflows/ci.yml/badge.svg)](https://github.com/Charlisim/coverfire/actions/workflows/ci.yml)
+
 Runs **locally** and in **CI**. Reads lcov/istanbul/clover/cobertura, computes **project** and **patch** coverage, fails the job, and on GitHub upserts a **PR comment**, publishes **status checks**, and marks uncovered lines.
 
 Not a GitHub App. Uses `GITHUB_TOKEN` (or any PAT) from the job. Source code never leaves the machine.
 
-Requires Node.js 18+. Zero dependencies.
+Zero dependencies. Node 20+, plus bun and pnpm.
 
 ## Install
 
 ```bash
 npm i -D coverfire
-# or without installing:
-npx coverfire --help
+pnpm add -D coverfire
+bun add -d coverfire
 ```
+
+No install:
+
+```bash
+npx coverfire --help
+pnpm dlx coverfire --help   # pnpx also works
+bunx coverfire --help
+```
+
+## Compatibility
+
+CI runs this matrix on every push:
+
+| Runtime | Versions |
+| --- | --- |
+| Node | 22, 24 (LTS), 26 (current), latest patch |
+| pnpm | 10, pack + `pnpm exec coverfire` |
+| bun | latest, `bun test` + pack + `bunx coverfire` |
 
 ## Local
 
 ```bash
 # Jest / Vitest / nyc usually write coverage/lcov.info
 npx jest --coverage --coverageReporters=lcov --coverageReporters=text
+# or: pnpm exec jest --coverage --coverageReporters=lcov
+# or: bun test --coverage
 
 npx coverfire --min 80 --patch-min 80 --base origin/main
+# or: pnpm exec coverfire --min 80 --patch-min 80 --base origin/main
+# or: bunx coverfire --min 80 --patch-min 80 --base origin/main
 ```
 
 Exit `0` if thresholds pass, `1` if they fail, `2` on usage/config errors.
@@ -74,13 +98,14 @@ jobs:
       checks: write
       statuses: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24
+          check-latest: true
           cache: npm
 
       - run: npm ci
@@ -141,7 +166,7 @@ The gate is just a process exit code. Point it at a coverage file after tests. T
 
 ```yaml
 test:
-  image: node:22
+  image: node:24
   script:
     - npm ci
     - npx jest --coverage --coverageReporters=lcov
@@ -158,7 +183,7 @@ version: 2.1
 jobs:
   test:
     docker:
-      - image: cimg/node:22.11
+      - image: cimg/node:24.0
     steps:
       - checkout
       - run: npm ci
@@ -172,7 +197,7 @@ jobs:
 
 ```groovy
 pipeline {
-  agent { docker { image 'node:22' } }
+  agent { docker { image 'node:24' } }
   environment { GITHUB_TOKEN = credentials('github-token') }
   stages {
     stage('test') {
