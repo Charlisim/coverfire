@@ -568,7 +568,7 @@
             <tr><th>Surface</th><th>What happens</th></tr>
           </thead>
           <tbody>
-            <tr><td>GitHub Actions</td><td><code>uses: Charlisim/coverfire@v0.1.0</code> after tests. <code>fetch-depth: 0</code>. Permissions: <code>pull-requests: write</code>, <code>checks: write</code>, <code>statuses: write</code>.</td></tr>
+            <tr><td>GitHub Actions</td><td><code>uses: Charlisim/coverfire@v0.1.0</code> after tests. Sticky PR comment with bars, line links, and a downloadable HTML artifact. Permissions: <code>pull-requests: write</code>, <code>checks: write</code>, <code>statuses: write</code>.</td></tr>
             <tr><td>Any other CI</td><td><code>npx</code> / <code>pnpm dlx</code> / <code>bunx coverfire --file coverage/lcov.info --min 80 --patch-min 80</code>. Exit 1 fails the job.</td></tr>
             <tr><td>Config</td><td><code>coverfire.json</code> in the repo root. Flags win. <code>0</code> on a threshold means report only.</td></tr>
           </tbody>

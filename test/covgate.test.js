@@ -3,11 +3,15 @@ import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { existsSync, readFileSync } from "node:fs";
 import {
+  bar,
+  blobLink,
   changedLines,
   computePatch,
   detectFormat,
   evaluate,
+  fileStats,
   groupRanges,
   matchGlob,
   mergeCoverage,
@@ -19,9 +23,11 @@ import {
   parseIstanbul,
   parseLcov,
   parseRemote,
+  renderHtml,
   renderMarkdown,
   run,
   totals,
+  writeReport,
 } from "../lib/coverfire.js";
 
 const LCOV = `TN:
@@ -154,17 +160,29 @@ test("totals and markdown marker", () => {
     patch: { covered: 1, total: 2, pct: 50, uncovered: [{ file: "src/a.js", start: 2, end: 2 }] },
     verdict: { delta: -1, failures: ["Patch coverage 50% is below minimum 80%"], ok: false },
     thresholds: { min: 80, patchMin: 80 },
+    byFile: fileStats(parseLcov(LCOV)),
+    github: { owner: "acme", repo: "app", sha: "abc123" },
   });
   assert.match(md, /<!-- coverfire -->/);
+  assert.match(md, /HOLD FIRE/);
   assert.match(md, /src\/a\.js:2/);
+  assert.match(md, /github.com\/acme\/app\/blob\/abc123\/src\/a.js#L2/);
+  assert.match(renderHtml({ project, patch: { covered: 1, total: 2, pct: 50, uncovered: [] }, verdict: { ok: false, failures: ["x"], delta: null }, byFile: [] }), /HOLD FIRE/);
+  assert.equal(bar(100, 10), "██████████");
+  assert.equal(bar(0, 10), "░░░░░░░░░░");
+  assert.equal(
+    blobLink({ owner: "acme", repo: "app", sha: "abc" }, "src/a.js", 2, 4),
+    "https://github.com/acme/app/blob/abc/src/a.js#L2-L4",
+  );
 });
 
 test("parseArgs and parseRemote", () => {
-  const a = parseArgs(["--file", "a.info", "--min", "80", "--comment", "--patch-min", "90"]);
+  const a = parseArgs(["--file", "a.info", "--min", "80", "--comment", "--patch-min", "90", "--out", "out"]);
   assert.deepEqual(a.files, ["a.info"]);
   assert.equal(a.min, 80);
   assert.equal(a.patchMin, 90);
   assert.equal(a.comment, true);
+  assert.equal(a.out, "out");
   assert.deepEqual(parseRemote("git@github.com:acme/app.git"), { owner: "acme", repo: "app" });
   assert.deepEqual(parseRemote("https://github.com/acme/app"), { owner: "acme", repo: "app" });
   assert.throws(() => parseArgs(["--nope"]));
@@ -194,4 +212,29 @@ test("run --help is 0", async () => {
 test("parseCoverage dispatches by filename", () => {
   const files = parseCoverage(LCOV, { filename: "coverage/lcov.info" });
   assert.ok(files.has("src/a.js"));
+});
+
+test("run --out writes json md html", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "coverfire-"));
+  mkdirSync(path.join(dir, "coverage"));
+  writeFileSync(path.join(dir, "coverage/lcov.info"), LCOV);
+  const out = path.join(dir, "coverfire-report");
+  const code = await run(
+    ["--file", "coverage/lcov.info", "--out", out, "--no-comment", "--no-checks"],
+    {},
+    { cwd: dir, log: () => {}, err: () => {} },
+  );
+  assert.equal(code, 0);
+  assert.equal(existsSync(path.join(out, "report.json")), true);
+  assert.equal(existsSync(path.join(out, "report.md")), true);
+  assert.equal(existsSync(path.join(out, "index.html")), true);
+  assert.match(readFileSync(path.join(out, "index.html"), "utf8"), /coverfire/);
+  const dir2 = path.join(dir, "manual");
+  writeReport(dir2, {
+    project: { covered: 1, total: 1, pct: 100 },
+    patch: { covered: 0, total: 0, pct: 100, uncovered: [] },
+    verdict: { ok: true, failures: [], delta: null },
+    byFile: [],
+  });
+  assert.equal(existsSync(path.join(dir2, "report.json")), true);
 });

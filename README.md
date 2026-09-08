@@ -117,6 +117,7 @@ jobs:
           file: coverage/lcov.info
           min: "80"
           patch-min: "80"
+          # uploads coverfire-report/ (json + md + HTML) even if the gate fails
 ```
 
 Same thing as a CLI step (no `uses:`):
@@ -125,7 +126,12 @@ Same thing as a CLI step (no `uses:`):
       - name: Coverage gate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx coverfire --file coverage/lcov.info --min 80 --patch-min 80
+        run: npx coverfire --file coverage/lcov.info --min 80 --patch-min 80 --out coverfire-report
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverfire-report
+          path: coverfire-report
 ```
 
 On `GITHUB_ACTIONS=true` with a token, `--comment` and `--checks` turn on by themselves.
@@ -134,12 +140,15 @@ On `GITHUB_ACTIONS=true` with a token, `--comment` and `--checks` turn on by the
 
 | Surface | Context / name | Behavior |
 | --- | --- | --- |
-| PR comment | one sticky comment marked `<!-- coverfire -->` | created once, updated on later pushes |
+| PR comment | sticky `<!-- coverfire -->` | bars, CLEAR/HOLD FIRE, worst files, uncovered lines linked to the blob |
 | Check run | `coverage/project` | fails if project `%` &lt; `--min` |
 | Check run | `coverage/patch` | fails if changed executable lines `%` &lt; `--patch-min`; notice annotations on uncovered hunks |
 | Check run | `coverage/change` | fails if project `%` drops more than `--max-decrease` (needs `--base-file`) |
+| Artifact | `coverfire-report` | `index.html` + `report.md` + `report.json` (uploaded even when the gate fails) |
 
 If the token cannot create check runs (403), coverfire falls back to **commit statuses** with the same names. Annotations need check runs.
+
+`--out coverfire-report` writes the HTML dashboard. In GitHub Actions that directory is created by default.
 
 ### Branch protection
 

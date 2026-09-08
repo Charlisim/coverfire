@@ -49,6 +49,18 @@ inputs:
     description: Add notice-level line annotations for uncovered patch lines.
     required: false
     default: "true"
+  out:
+    description: Directory for report.json, report.md, and index.html.
+    required: false
+    default: coverfire-report
+  artifact:
+    description: Upload the report directory as a GitHub Actions artifact.
+    required: false
+    default: "true"
+  artifact-name:
+    description: Artifact name.
+    required: false
+    default: coverfire-report
   token:
     description: GitHub token. Defaults to the workflow token.
     required: false
@@ -71,6 +83,7 @@ runs:
         INPUT_COMMENT: ${{ inputs.comment }}
         INPUT_CHECKS: ${{ inputs.checks }}
         INPUT_ANNOTATE: ${{ inputs.annotate }}
+        INPUT_OUT: ${{ inputs.out }}
       run: |
         set -euo pipefail
         args=()
@@ -90,4 +103,12 @@ runs:
         if [[ "$INPUT_COMMENT" == "true" ]]; then args+=(--comment); else args+=(--no-comment); fi
         if [[ "$INPUT_CHECKS" == "true" ]]; then args+=(--checks); else args+=(--no-checks); fi
         if [[ "$INPUT_ANNOTATE" != "true" ]]; then args+=(--no-annotate); fi
+        if [[ -n "$INPUT_OUT" ]]; then args+=(--out "$INPUT_OUT"); fi
         node "$GITHUB_ACTION_PATH/bin/coverfire.js" "${args[@]}"
+    - name: Upload coverfire report
+      if: ${{ always() && inputs.artifact != 'false' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.out }}
+        if-no-files-found: warn
